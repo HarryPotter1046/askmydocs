@@ -1,10 +1,12 @@
 """Generate the demo PDFs into docs/ — fake-but-realistic support docs with
 specific, page-locatable facts so your citations resolve to a real page.
 
-Requires reportlab:  pip install reportlab
+Requires reportlab (included in requirements.txt)
 Then:                python make_sample_pdfs.py
 """
 import os
+
+DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -72,7 +74,7 @@ DOCS = {
 
 def build(filename, pages):
     styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(os.path.join("docs", filename), pagesize=letter)
+    doc = SimpleDocTemplate(os.path.join(DOCS_DIR, filename), pagesize=letter)
     flow = []
     for i, blocks in enumerate(pages):
         if i > 0:
@@ -85,7 +87,7 @@ def build(filename, pages):
 
 
 if __name__ == "__main__":
-    os.makedirs("docs", exist_ok=True)
+    os.makedirs(DOCS_DIR, exist_ok=True)
     for filename, pages in DOCS.items():
         build(filename, pages)
     print("\nDone. Next: python ingest.py")

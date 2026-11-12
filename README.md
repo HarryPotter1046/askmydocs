@@ -24,23 +24,58 @@ Five moving parts: **chunk → embed → store → retrieve → generate.**
 
 ## Setup
 
+Requires **Python 3.10+**, a [Supabase](https://supabase.com) project, and OpenAI + Anthropic API keys.
+
 ```bash
-pip install -r requirements.txt
-cp .env.example .env          # then fill in your keys
+make setup        # creates .venv, installs pinned deps, copies .env.example -> .env
 ```
 
-1. **Database** — run [`schema.sql`](schema.sql) in the Supabase SQL editor
-   (creates the `documents` table + `match_documents` function).
-2. **Demo data** — `pip install reportlab && python make_sample_pdfs.py`
-   (writes refund / shipping / warranty PDFs into `docs/`), or drop your own PDFs in `docs/`.
-3. **Ingest** — `python ingest.py`
-4. **Serve** — `uvicorn app:app --reload`
-5. **Chat** — open `index.html` in a browser.
+<details><summary>Without make</summary>
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+Then use `python make_sample_pdfs.py`, `python ingest.py`, `uvicorn app:app --reload`.
+</details>
+
+1. **Keys** — fill in `.env`. `SUPABASE_KEY` is the *service-role* key
+   (Project Settings → API). The scripts refuse to start while any value is
+   still the `.env.example` placeholder.
+2. **Database** — paste [`schema.sql`](schema.sql) into the Supabase SQL editor and run it
+   (creates the `documents` table + `match_documents` function; safe to re-run).
+3. **Demo data** — `make sample` writes refund / shipping / warranty PDFs into `docs/`,
+   or drop your own PDFs there.
+4. **Ingest** — `make ingest`. Safe to re-run: a re-ingested file's old chunks are
+   replaced, not duplicated. Ingest specific files with `python ingest.py path/to/file.pdf`.
+5. **Serve + chat** — `make serve`, then open **http://localhost:8000**
+   (the API serves the UI; `GET /health` shows the active model and threshold).
+
+### Configuration
+
+Optional overrides in `.env` (defaults in [`config.py`](config.py)):
+
+| Var | Default | Notes |
+|---|---|---|
+| `CLAUDE_MODEL` | `claude-sonnet-4-6` | e.g. `claude-sonnet-5-5`, or `claude-opus-5-5` for max quality |
+| `MAX_TOKENS` | `1024` | answer length cap |
+| `MATCH_COUNT` | `4` | chunks retrieved per question |
+| `MATCH_THRESHOLD` | `0.3` | similarity floor — see tuning below |
+| `EMBED_MODEL` | `text-embedding-3-small` | must match `vector(1536)` in `schema.sql`; re-ingest if changed |
+| `CORS_ORIGINS` | `*` | comma-separated; only matters if the UI is hosted elsewhere |
+
+### Troubleshooting
+
+- **`Missing/placeholder env vars`** — `.env` still has template values.
+- **`Could not find the function match_documents`** / `relation "documents" does not exist` — run `schema.sql`.
+- **Every question returns "I couldn't find that"** — nothing ingested yet, or `MATCH_THRESHOLD` too high.
+- **`Skipped X (no extractable text)`** — scanned/image PDF; OCR it first.
 
 ## Demo script (the 90-second Loom)
 
 1. Show the `docs/` folder of sample PDFs.
-2. Run `python ingest.py` → chunks get embedded and stored.
+2. Run `make ingest` → chunks get embedded and stored.
 3. Ask: *"What's your refund policy for orders over 30 days?"*
    → grounded answer **+ "Sources: refund_policy.pdf (p.1)"**.
 4. Ask something not in the docs: *"Do you ship to Antarctica?"*
@@ -60,17 +95,19 @@ The "I don't know" moment is what makes a client trust it. Don't skip it.
 
 ### Threshold tuning (once, before recording)
 
-`MATCH_THRESHOLD` in [`app.py`](app.py) defaults to `0.3` — a starting point, not a
+`MATCH_THRESHOLD` (env var, see [`config.py`](config.py)) defaults to `0.3` — a starting point, not a
 magic number. After ingesting your docs, read the `similarity` values the `/ask`
 endpoint returns for real vs. out-of-scope questions, and set the threshold just below
-your worst legitimate match and above the best junk match.
+your worst legitimate match and above the best junk match, then restart the server.
 
 ## Project layout
 
 ```
 schema.sql          # Supabase table + match_documents()
+config.py           # env loading/validation + tunables shared by both scripts
+Makefile            # setup / sample / ingest / serve shortcuts
 ingest.py           # PDFs -> per-page chunks -> embeddings -> Supabase
-app.py              # FastAPI /ask endpoint (retrieve + generate)
+app.py              # FastAPI: / (UI), /health, /ask (retrieve + generate)
 index.html          # minimal chat UI
 make_sample_pdfs.py # optional: generate demo PDFs into docs/
 docs/               # your source PDFs

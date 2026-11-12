@@ -18,7 +18,8 @@
     <button onclick="ask()">Send</button>
   </div>
 <script>
-const API_URL = 'http://localhost:8000/ask';
+// Served by FastAPI at http://localhost:8000 -> same-origin. Opened as a file -> localhost.
+const API_URL = location.protocol === 'file:' ? 'http://localhost:8000/ask' : '/ask';
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => (
@@ -42,8 +43,10 @@ async function ask() {
       body: JSON.stringify({ question }),
     });
     data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
   } catch (e) {
-    chat.innerHTML += `<div class="msg bot">⚠️ Couldn't reach the backend. Is uvicorn running?</div>`;
+    const why = e instanceof TypeError ? "Couldn't reach the backend. Is uvicorn running?" : e.message;
+    chat.innerHTML += `<div class="msg bot">⚠️ ${escapeHtml(why)}</div>`;
     chat.scrollTop = chat.scrollHeight;
     return;
   }

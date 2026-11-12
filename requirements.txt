@@ -1,7 +1,11 @@
-openai
-anthropic
-supabase
-pypdf
-fastapi
-uvicorn
-python-dotenv
+# Pinned to versions verified together (Python 3.10+). Upgrade deliberately.
+anthropic==0.109.1
+openai==2.41.1
+supabase==2.31.0
+pypdf==6.13.2
+fastapi==0.136.3
+uvicorn==0.49.0
+python-dotenv==1.2.2
+
+# Demo data only (make_sample_pdfs.py)
+reportlab==5.1.0

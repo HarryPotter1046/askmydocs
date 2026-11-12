@@ -3,9 +3,8 @@
 Drop the PDFs you want the agent to answer from here — `ingest.py` reads `docs/*.pdf`.
 
 For the demo, generate ready-made sample docs (refund / shipping / warranty, with
-page-locatable facts):
+page-locatable facts) from the repo root:
 
 ```bash
-pip install reportlab
-python ../make_sample_pdfs.py   # or run from the repo root: python make_sample_pdfs.py
+make sample        # or: python make_sample_pdfs.py  (works from any directory)
 ```

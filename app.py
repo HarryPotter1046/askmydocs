@@ -1,32 +1,33 @@
 """AskMyDocs RAG endpoint: embed question -> retrieve grounded chunks -> Claude.
 
-Run:  uvicorn app:app --reload
+Run:  uvicorn app:app --reload   then open http://localhost:8000
 """
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from openai import OpenAI
 from anthropic import Anthropic
 from supabase import create_client
-from dotenv import load_dotenv
 
-load_dotenv()
+import config
+
+config.require_env()
 openai = OpenAI()
 claude = Anthropic()
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
-app = FastAPI()
+app = FastAPI(title="AskMyDocs")
+# Only needed if index.html is opened from file:// or another origin.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Tune against your demo data — see "Threshold tuning" in the plan/README.
-MATCH_THRESHOLD = 0.3
 NOT_FOUND = "I couldn't find that in the provided documents."
 
 
@@ -35,18 +36,30 @@ class Query(BaseModel):
 
 
 def embed(text):
-    return openai.embeddings.create(
-        model="text-embedding-3-small", input=text
-    ).data[0].embedding
+    return openai.embeddings.create(model=config.EMBED_MODEL, input=text).data[0].embedding
+
+
+@app.get("/")
+def index():
+    return FileResponse(config.ROOT / "index.html")
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "model": config.CLAUDE_MODEL, "threshold": config.MATCH_THRESHOLD}
 
 
 @app.post("/ask")
 def ask(q: Query):
-    q_vec = embed(q.question)
+    question = q.question.strip()
+    if not question:
+        raise HTTPException(400, "question must not be empty")
+
+    q_vec = embed(question)
     res = supabase.rpc("match_documents", {
         "query_embedding": q_vec,
-        "match_count": 4,
-        "match_threshold": MATCH_THRESHOLD,
+        "match_count": config.MATCH_COUNT,
+        "match_threshold": config.MATCH_THRESHOLD,
     }).execute()
     chunks = res.data or []
 
@@ -64,12 +77,12 @@ def ask(q: Query):
         "Do NOT mention or list sources in your answer — the UI displays them separately."
     )
     msg = claude.messages.create(
-        model="claude-sonnet-4-6",        # swap to "claude-opus-4-8" for max quality
-        max_tokens=500,
+        model=config.CLAUDE_MODEL,
+        max_tokens=config.MAX_TOKENS,
         system=system,
         messages=[{
             "role": "user",
-            "content": f"Context:\n{context}\n\nQuestion: {q.question}",
+            "content": f"Context:\n{context}\n\nQuestion: {question}",
         }],
     )
     answer = "".join(b.text for b in msg.content if b.type == "text")

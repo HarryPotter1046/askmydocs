@@ -1,10 +1,10 @@
--- AskMyDocs — Supabase schema. Run this once in the Supabase SQL editor.
+-- AskMyDocs — Supabase schema. Run in the Supabase SQL editor (safe to re-run).
 
 -- pgvector for similarity search
 create extension if not exists vector;
 
 -- Document chunks + their embeddings
-create table documents (
+create table if not exists documents (
   id bigserial primary key,
   content text,                 -- the chunk text
   source text,                  -- e.g. "refund_policy.pdf"
@@ -12,6 +12,9 @@ create table documents (
   chunk_index int,              -- position within the source doc
   embedding vector(1536)        -- 1536 dims = text-embedding-3-small
 );
+
+-- Lets ingest.py replace a document's chunks quickly on re-ingest.
+create index if not exists documents_source_idx on documents (source);
 
 -- Cosine-similarity search with a relevance floor.
 -- `<=>` is pgvector's cosine-distance operator; `1 - distance` is a 0–1 similarity.
@@ -35,4 +38,4 @@ $$;
 
 -- Not needed at demo scale (a few hundred chunks = instant exact scan).
 -- For production, uncomment:
--- create index on documents using hnsw (embedding vector_cosine_ops);
+-- create index if not exists documents_embedding_idx on documents using hnsw (embedding vector_cosine_ops);
