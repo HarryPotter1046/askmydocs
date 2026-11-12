@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head><title>AskMyDocs</title>
+<style>
+  body { font-family: system-ui; max-width: 640px; margin: 40px auto; }
+  #chat { border: 1px solid #ddd; border-radius: 8px; padding: 16px; min-height: 300px; }
+  .msg { margin: 12px 0; }
+  .user { text-align: right; color: #2563eb; }
+  .bot { color: #111; white-space: pre-wrap; }
+  .src { font-size: 12px; color: #888; margin-top: 4px; }
+  input { width: 78%; padding: 10px; } button { padding: 10px 16px; }
+</style></head>
+<body>
+  <h2>AskMyDocs</h2>
+  <div id="chat"></div>
+  <div style="margin-top:12px">
+    <input id="q" placeholder="Ask about the docs..." />
+    <button onclick="ask()">Send</button>
+  </div>
+<script>
+const API_URL = 'http://localhost:8000/ask';
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+async function ask() {
+  const input = document.getElementById('q');
+  const chat = document.getElementById('chat');
+  const question = input.value.trim();
+  if (!question) return;
+  chat.innerHTML += `<div class="msg user">${escapeHtml(question)}</div>`;
+  input.value = '';
+
+  let data;
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    data = await res.json();
+  } catch (e) {
+    chat.innerHTML += `<div class="msg bot">⚠️ Couldn't reach the backend. Is uvicorn running?</div>`;
+    chat.scrollTop = chat.scrollHeight;
+    return;
+  }
+
+  let html = `<div class="msg bot">${escapeHtml(data.answer)}`;
+  if (data.citations && data.citations.length) {
+    const cites = data.citations
+      .map(c => `${escapeHtml(c.source)} (p.${c.page}, ${Math.round(c.similarity * 100)}% match)`)
+      .join(', ');
+    html += `<div class="src">Sources: ${cites}</div>`;
+  }
+  html += `</div>`;
+  chat.innerHTML += html;
+  chat.scrollTop = chat.scrollHeight;
+}
+
+document.getElementById('q').addEventListener('keypress',
+  e => { if (e.key === 'Enter') ask(); });
+</script>
+</body>
+</html>

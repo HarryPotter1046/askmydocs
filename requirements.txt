@@ -1,0 +1,7 @@
+openai
+anthropic
+supabase
+pypdf
+fastapi
+uvicorn
+python-dotenv
